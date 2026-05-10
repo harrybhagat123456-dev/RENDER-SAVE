@@ -9,11 +9,5 @@ python-decouple
 pytesseract
 Pillow
 ddgs
-cryptg
-ddgs
 flask
-Pillow
-pyrogram
-pytesseract
-python-decouple
-tgcrypto
+requests

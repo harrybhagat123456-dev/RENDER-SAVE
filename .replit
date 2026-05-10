@@ -23,12 +23,12 @@ args = "Start application"
 name = "Start application"
 author = "agent"
 
+[workflows.workflow.metadata]
+outputType = "console"
+
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python3 -m main"
-
-[workflows.workflow.metadata]
-outputType = "console"
 
 [[ports]]
 localPort = 10000
