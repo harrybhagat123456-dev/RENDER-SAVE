@@ -4,46 +4,59 @@ import os
 from .. import bot as Drone
 from telethon import events, Button
 
-from ethon.mystarts import start_srb
-    
 S = '/' + 's' + 't' + 'a' + 'r' + 't'
 
+START_TEXT = """
+**Save Restricted Content Bot**
+
+Send me any Telegram message link to save it here.
+For private channels, send the invite link first.
+
+**Quick start:**
+/login — Connect your Telegram account
+/help — See all available commands
+
+**Support:** @TeamDrone
+""".strip()
+
 @Drone.on(events.callbackquery.CallbackQuery(data="set"))
-async def sett(event):    
-    Drone = event.client                    
-    button = await event.get_message()
-    msg = await button.get_reply_message() 
+async def sett(event):
+    Drone = event.client
     await event.delete()
-    async with Drone.conversation(event.chat_id) as conv: 
-        xx = await conv.send_message("Send me any image for thumbnail as a `reply` to this message.")
-        x = await conv.get_reply()
+    async with Drone.conversation(event.chat_id) as conv:
+        xx = await conv.send_message(
+            "Send me any image for thumbnail as a `reply` to this message.",
+            buttons=Button.force_reply()
+        )
+        x = await conv.get_response()
         if not x.media:
-            xx.edit("No media found.")
+            return await xx.edit("No media found.")
         mime = x.file.mime_type
-        if not 'png' in mime:
-            if not 'jpg' in mime:
-                if not 'jpeg' in mime:
-                    return await xx.edit("No image found.")
+        if not any(ext in mime for ext in ('png', 'jpg', 'jpeg')):
+            return await xx.edit("No image found. Please send a JPG or PNG.")
         await xx.delete()
-        t = await event.client.send_message(event.chat_id, 'Trying.')
-        path = await event.client.download_media(x.media)
+        t = await Drone.send_message(event.chat_id, 'Saving thumbnail...')
+        path = await Drone.download_media(x.media)
         if os.path.exists(f'{event.sender_id}.jpg'):
             os.remove(f'{event.sender_id}.jpg')
         os.rename(path, f'./{event.sender_id}.jpg')
-        await t.edit("Temporary thumbnail saved!")
-        
+        await t.edit("Thumbnail saved!")
+
 @Drone.on(events.callbackquery.CallbackQuery(data="rem"))
-async def remt(event):  
-    Drone = event.client            
-    await event.edit('Trying.')
+async def remt(event):
+    Drone = event.client
+    await event.edit('Removing...')
     try:
         os.remove(f'{event.sender_id}.jpg')
-        await event.edit('Removed!')
+        await event.edit('Thumbnail removed!')
     except Exception:
-        await event.edit("No thumbnail saved.")                        
-  
+        await event.edit("No thumbnail was saved.")
+
 @Drone.on(events.NewMessage(incoming=True, pattern=f"{S}"))
 async def start(event):
-    text = "Send me Link of any message to clone it here, For private channel message, send invite link first.\n\n**SUPPORT:** @TeamDrone"
-    await start_srb(event, text)
-    
+    await event.reply(
+        START_TEXT,
+        buttons=[
+            [Button.inline("Set Thumbnail", b"set"), Button.inline("Remove Thumbnail", b"rem")]
+        ]
+    )

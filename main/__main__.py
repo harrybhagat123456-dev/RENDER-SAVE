@@ -1,8 +1,9 @@
 import glob, asyncio
 from pathlib import Path
 from main.utils import load_plugins
-import logging
+import logging, requests
 from . import bot, Bot
+from decouple import config
 
 from telethon.tl.functions.bots import SetBotCommandsRequest
 from telethon.tl.types import BotCommand, BotCommandScopeDefault
@@ -22,27 +23,32 @@ print("Successfully deployed!")
 print("By MaheshChauhan • DroneBots")
 
 # ---------------------------------------------------------------------------
-# Register bot menu commands via Telethon raw API (synchronous at startup)
+# Register menu commands via direct HTTP Bot API — most reliable method
 # ---------------------------------------------------------------------------
+_COMMANDS = [
+    {"command": "start",     "description": "Start the bot"},
+    {"command": "help",      "description": "List all available commands"},
+    {"command": "login",     "description": "Login your Telegram account"},
+    {"command": "logout",    "description": "Logout and remove saved session"},
+    {"command": "batch",     "description": "Save multiple messages in bulk"},
+    {"command": "history",   "description": "Resume saving from where you left off"},
+    {"command": "setchat",   "description": "Set transfer channel for saved content"},
+    {"command": "mychat",    "description": "View your current transfer channel"},
+    {"command": "clearchat", "description": "Reset transfer channel to DM"},
+    {"command": "cancel",    "description": "Cancel active batch operation"},
+]
+
 try:
-    bot(SetBotCommandsRequest(
-        scope=BotCommandScopeDefault(),
-        lang_code="",
-        commands=[
-            BotCommand("start",     "▶️ Start the bot"),
-            BotCommand("login",     "🔐 Login your Telegram account"),
-            BotCommand("logout",    "🚪 Logout and remove saved session"),
-            BotCommand("batch",     "📦 Save multiple messages in bulk"),
-            BotCommand("history",   "🔄 Resume saving from where you left off"),
-            BotCommand("setchat",   "📤 Set transfer channel for saved content"),
-            BotCommand("mychat",    "📋 View your current transfer channel"),
-            BotCommand("clearchat", "🗑 Reset transfer channel to DM"),
-            BotCommand("cancel",    "❌ Cancel active batch operation"),
-        ]
-    ))
-    print("[COMMANDS] Bot menu commands registered successfully.")
+    BOT_TOKEN = config("BOT_TOKEN", default=None)
+    base = f"https://api.telegram.org/bot{BOT_TOKEN}"
+    requests.post(f"{base}/deleteMyCommands", json={}, timeout=10)
+    r = requests.post(f"{base}/setMyCommands", json={"commands": _COMMANDS}, timeout=10)
+    if r.json().get("ok"):
+        print(f"[COMMANDS] {len(_COMMANDS)} menu commands registered successfully.")
+    else:
+        print(f"[COMMANDS] setMyCommands failed: {r.json()}")
 except Exception as e:
-    print(f"[COMMANDS] Could not set bot commands: {e}")
+    print(f"[COMMANDS] Could not register commands: {e}")
 
 if __name__ == "__main__":
     bot.run_until_disconnected()
