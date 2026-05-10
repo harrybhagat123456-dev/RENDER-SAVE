@@ -1,0 +1,17 @@
+services:
+  - type: worker
+    name: SaveRestrictedContentBot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVars:
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: BOT_TOKEN
+        sync: false
+      - key: SESSION
+        sync: false
+      - key: AUTH
+        sync: false
