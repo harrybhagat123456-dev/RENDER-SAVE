@@ -22,7 +22,13 @@ SESSION = config("SESSION", default=None)
 FORCESUB = config("FORCESUB", default=None)
 AUTH = config("AUTH", default=None, cast=_safe_int)
 
-SESSION_FILE = "user_session.txt"
+# DATA_DIR: where persistent files are stored.
+# Set to /data on Render (mounted disk) or leave as "." for local/Replit.
+DATA_DIR = config("DATA_DIR", default=".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+SESSION_FILE = os.path.join(DATA_DIR, "user_session.txt")
+MSG_MAP_FILE = os.path.join(DATA_DIR, "msg_map.json")
 
 # ---------------------------------------------------------------------------
 # MONKEY-PATCH: Fix Pyrogram's get_peer_type to handle unknown channel IDs

@@ -2,7 +2,8 @@ FROM python:3.11-slim-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    DATA_DIR=/data
 
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
@@ -13,6 +14,9 @@ RUN apt-get update -qq && \
         libglib2.0-0 \
         libgl1 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Persistent data directory (session + msg_map cache)
+RUN mkdir -p /data
 
 WORKDIR /app
 COPY requirements.txt .

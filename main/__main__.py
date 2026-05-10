@@ -22,8 +22,7 @@ print("Successfully deployed!")
 print("By MaheshChauhan • DroneBots")
 
 # ---------------------------------------------------------------------------
-# Register bot menu commands via Telethon raw API (runs synchronously)
-# so they show up in the "/" menu in Telegram for every user.
+# Register bot menu commands via Telethon raw API (synchronous at startup)
 # ---------------------------------------------------------------------------
 try:
     bot(SetBotCommandsRequest(
@@ -34,6 +33,7 @@ try:
             BotCommand("login",     "🔐 Login your Telegram account"),
             BotCommand("logout",    "🚪 Logout and remove saved session"),
             BotCommand("batch",     "📦 Save multiple messages in bulk"),
+            BotCommand("history",   "🔄 Resume saving from where you left off"),
             BotCommand("setchat",   "📤 Set transfer channel for saved content"),
             BotCommand("mychat",    "📋 View your current transfer channel"),
             BotCommand("clearchat", "🗑 Reset transfer channel to DM"),

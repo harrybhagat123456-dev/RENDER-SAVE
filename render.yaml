@@ -4,6 +4,10 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
+    disk:
+      name: bot-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: API_ID
         sync: false
@@ -11,7 +15,9 @@ services:
         sync: false
       - key: BOT_TOKEN
         sync: false
-      - key: SESSION
-        sync: false
       - key: AUTH
         sync: false
+      - key: FORCESUB
+        sync: false
+      - key: DATA_DIR
+        value: /data

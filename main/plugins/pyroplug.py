@@ -20,8 +20,45 @@ from telethon import events
 
 # ---------------------------------------------------------------------------
 # Global mapping: original chat_id+msg_id -> new msg_id in our saved channel
+# Persisted to MSG_MAP_FILE so history/resume survives restarts.
 # ---------------------------------------------------------------------------
 msg_map = {}
+
+def _map_key_to_str(k):
+    return f"{k[0]}:{k[1]}"
+
+def _str_to_map_key(s):
+    parts = s.rsplit(":", 1)
+    chat = parts[0]
+    msg_id = int(parts[1])
+    try:
+        chat = int(chat)
+    except ValueError:
+        pass
+    return (chat, msg_id)
+
+def _load_msg_map():
+    try:
+        from .. import MSG_MAP_FILE
+        if os.path.exists(MSG_MAP_FILE):
+            with open(MSG_MAP_FILE) as f:
+                raw = json.load(f)
+            for k, v in raw.items():
+                msg_map[_str_to_map_key(k)] = v
+            print(f"[HISTORY] Loaded {len(msg_map)} entries from msg_map cache.")
+    except Exception as e:
+        print(f"[HISTORY] Could not load msg_map: {e}")
+
+def _save_msg_map():
+    try:
+        from .. import MSG_MAP_FILE
+        serialised = {_map_key_to_str(k): v for k, v in msg_map.items()}
+        with open(MSG_MAP_FILE, "w") as f:
+            json.dump(serialised, f)
+    except Exception as e:
+        print(f"[HISTORY] Could not save msg_map: {e}")
+
+_load_msg_map()
 
 # Cache of channel IDs we've already resolved to avoid repeated dialog scans
 _resolved_peers = set()
@@ -660,6 +697,7 @@ async def copy_message_fallback(userbot_client, target_chat, source_chat, msg_id
 
 def register_msg_mapping(original_chat, original_msg_id, new_chat_id, new_msg_id):
     msg_map[(original_chat, original_msg_id)] = new_msg_id
+    _save_msg_map()
 
 
 # ---------------------------------------------------------------------------
