@@ -1,11 +1,6 @@
 # Login / Logout plugin
-# Lets the AUTH user authenticate a Telegram account interactively through
-# the bot — no SESSION env-var required.
-#
-# Commands
-# --------
-# /login   — start interactive phone + OTP (+ 2FA password if needed) flow
-# /logout  — disconnect the userbot and delete the saved session file
+# Commands: /login  — interactive phone + OTP + optional 2FA flow
+#           /logout — disconnect userbot and delete saved session
 
 import os
 import asyncio
@@ -14,7 +9,7 @@ import traceback
 from .. import bot as Drone, API_ID, API_HASH, SESSION_FILE, AUTH
 import main as _main_module
 
-from telethon import events
+from telethon import events, Button
 from pyrogram import Client
 from pyrogram.errors import (
     SessionPasswordNeeded,
@@ -24,15 +19,19 @@ from pyrogram.errors import (
     BadRequest,
 )
 
-_TIMEOUT = 120
+_TIMEOUT = 300   # 5 minutes — enough time to receive and enter OTP
 
 
 async def _ask(conv, question, timeout=_TIMEOUT):
-    """Send a question and wait for the user's next text reply."""
-    await conv.send_message(question)
+    """
+    Send a question with a force_reply button (so Telegram auto-opens the
+    reply box) then wait for ANY response in the conversation — not just a
+    Telegram-reply to that specific message.
+    """
+    await conv.send_message(question, buttons=Button.force_reply())
     try:
-        reply = await conv.get_reply(timeout=timeout)
-        return reply.text.strip() if reply and reply.text else None
+        resp = await conv.get_response(timeout=timeout)
+        return resp.text.strip() if resp and resp.text else None
     except asyncio.TimeoutError:
         await conv.send_message("⏱ Timed out. Please send /login again.")
         return None
@@ -46,19 +45,30 @@ async def login_cmd(event):
 
     if _main_module.userbot and _main_module.userbot.is_connected:
         await event.reply(
-            "Userbot is already logged in. Send /logout first if you want to switch accounts."
+            "Userbot is already logged in.\n"
+            "Send /logout first if you want to switch accounts."
         )
         return
 
     async with Drone.conversation(event.chat_id, timeout=_TIMEOUT) as conv:
+
+        # ── Step 1: phone number ──────────────────────────────────────────
         phone = await _ask(
             conv,
-            "📱 Send your phone number in international format\n(e.g. `+919876543210`):"
+            "📱 **Enter your phone number** in international format\n"
+            "Example: `+919876543210`"
         )
         if not phone:
             return
 
-        # Fresh in-memory Pyrogram client — no session file created on disk
+        # Normalise: strip spaces/dashes the user might add
+        phone = phone.replace(" ", "").replace("-", "")
+        if not phone.startswith("+"):
+            phone = "+" + phone
+
+        await conv.send_message("⏳ Connecting to Telegram…")
+
+        # ── Fresh in-memory Pyrogram client ───────────────────────────────
         temp_client = Client(
             name="login_temp",
             api_id=API_ID,
@@ -69,24 +79,30 @@ async def login_cmd(event):
         try:
             await temp_client.connect()
         except Exception as e:
-            await conv.send_message(f"❌ Could not connect to Telegram: {e}")
+            await conv.send_message(f"❌ Could not connect to Telegram:\n`{e}`")
             return
 
-        # Request OTP
+        # ── Step 2: send OTP ──────────────────────────────────────────────
         try:
             sent = await temp_client.send_code(phone)
         except PhoneNumberInvalid:
-            await conv.send_message("❌ That phone number is invalid. Try /login again.")
+            await conv.send_message(
+                "❌ That phone number is invalid.\n"
+                "Send /login and try again with a correct number."
+            )
             await temp_client.disconnect()
             return
         except Exception as e:
-            await conv.send_message(f"❌ Failed to send OTP: {e}")
+            await conv.send_message(f"❌ Failed to send OTP:\n`{e}`")
             await temp_client.disconnect()
             return
 
+        # ── Step 3: OTP code ──────────────────────────────────────────────
         code = await _ask(
             conv,
-            "🔐 OTP sent! Enter the code (spaces are fine, e.g. `1 2 3 4 5` or `12345`):"
+            "🔐 **OTP sent to your Telegram!**\n\n"
+            "Enter the code you received.\n"
+            "Spaces are fine — e.g. `1 2 3 4 5` or `12345`"
         )
         if not code:
             await temp_client.disconnect()
@@ -94,53 +110,63 @@ async def login_cmd(event):
 
         code = code.replace(" ", "")
 
-        # Sign in
+        # ── Step 4: sign in ───────────────────────────────────────────────
         try:
             await temp_client.sign_in(phone, sent.phone_code_hash, code)
 
         except SessionPasswordNeeded:
-            password = await _ask(conv, "🔒 2FA is enabled. Enter your password:")
+            # ── Step 4b: 2FA password ─────────────────────────────────────
+            password = await _ask(
+                conv,
+                "🔒 **Two-step verification is enabled.**\n\nEnter your 2FA password:"
+            )
             if not password:
                 await temp_client.disconnect()
                 return
             try:
                 await temp_client.check_password(password)
             except BadRequest as e:
-                await conv.send_message(f"❌ Wrong password: {e}")
+                await conv.send_message(f"❌ Wrong 2FA password:\n`{e}`")
                 await temp_client.disconnect()
                 return
             except Exception as e:
-                await conv.send_message(f"❌ 2FA check failed: {e}")
+                await conv.send_message(f"❌ 2FA check failed:\n`{e}`")
                 await temp_client.disconnect()
                 return
 
         except PhoneCodeInvalid:
-            await conv.send_message("❌ Invalid code. Please try /login again.")
+            await conv.send_message(
+                "❌ That code is invalid.\n"
+                "Send /login and try again."
+            )
             await temp_client.disconnect()
             return
 
         except PhoneCodeExpired:
-            await conv.send_message("❌ Code expired. Please try /login again.")
+            await conv.send_message(
+                "❌ That code has expired.\n"
+                "Send /login to request a fresh OTP."
+            )
             await temp_client.disconnect()
             return
 
         except Exception as e:
-            await conv.send_message(f"❌ Sign-in failed: {e}")
+            await conv.send_message(f"❌ Sign-in failed:\n`{e}`")
             traceback.print_exc()
             await temp_client.disconnect()
             return
 
-        # Export and persist session string
+        # ── Step 5: export & persist session ─────────────────────────────
         try:
             session_string = await temp_client.export_session_string()
             with open(SESSION_FILE, "w") as f:
                 f.write(session_string)
         except Exception as e:
-            await conv.send_message(f"❌ Could not save session: {e}")
+            await conv.send_message(f"❌ Could not save session:\n`{e}`")
             await temp_client.disconnect()
             return
 
-        # Attach as the live userbot
+        # ── Step 6: attach as live userbot ────────────────────────────────
         _main_module.userbot.set(temp_client)
 
         try:
@@ -154,7 +180,7 @@ async def login_cmd(event):
             f"✅ **Logged in successfully!**\n\n"
             f"**Account:** {name} {username}\n"
             f"**Phone:** `{phone}`\n\n"
-            f"Session saved — bot will remember this across restarts.\n"
+            f"Session saved — the bot will remember this login across restarts.\n"
             f"Use /logout to disconnect."
         )
 
@@ -165,9 +191,7 @@ async def logout_cmd(event):
         await event.reply("No userbot is currently logged in.")
         return
 
-    # Grab the underlying client before clearing the ref
     underlying = _main_module.userbot._client
-
     _main_module.userbot.clear()
 
     if underlying is not None:
@@ -180,7 +204,6 @@ async def logout_cmd(event):
         except Exception:
             pass
 
-    # Remove saved session file
     if os.path.exists(SESSION_FILE):
         try:
             os.remove(SESSION_FILE)
@@ -189,6 +212,6 @@ async def logout_cmd(event):
 
     await event.reply(
         "✅ **Logged out.**\n\n"
-        "The userbot session has been terminated.\n"
+        "The userbot session has been terminated and the saved session deleted.\n"
         "Use /login to authenticate again."
     )
