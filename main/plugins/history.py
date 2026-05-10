@@ -1,9 +1,8 @@
 import asyncio
 
-from .. import bot as Drone, Bot, is_authorized
+from .. import bot as Drone, Bot, is_authorized, get_target_chat
 from main.plugins.pyroplug import get_bulk_msg, msg_map
 from main.plugins.helpers import get_link
-from main.plugins.setchat import get_target_chat
 
 import main as _main_module
 
@@ -38,7 +37,7 @@ def _find_resume_point(chat_id):
     return len(saved_ids), max(saved_ids)
 
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/history'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/history(?:@\w+)?(?:\s|$)'))
 async def history_cmd(event):
     if not is_authorized(event.sender_id):
         return

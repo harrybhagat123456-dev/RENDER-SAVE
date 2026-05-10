@@ -3,43 +3,12 @@
 # /mychat — show current target chat
 # /clearchat — reset to user's DM (default)
 
-import os, json
-from .. import bot as Drone, Bot, is_authorized, DATA_DIR
-from main.plugins.pyroplug import get_msg
-from main.plugins.helpers import get_link, join
+from .. import (
+    bot as Drone, Bot, is_authorized,
+    get_target_chat, set_target_chat, clear_target_chat, _user_target_chats
+)
 
-from telethon import events, Button
-
-_SETCHAT_FILE = os.path.join(DATA_DIR, "user_target_chats.json")
-
-_user_target_chats = {}
-
-
-def _load_target_chats():
-    try:
-        if os.path.exists(_SETCHAT_FILE):
-            with open(_SETCHAT_FILE) as f:
-                raw = json.load(f)
-            for k, v in raw.items():
-                _user_target_chats[int(k)] = int(v)
-            print(f"[SETCHAT] Loaded {len(_user_target_chats)} saved target chats")
-    except Exception as e:
-        print(f"[SETCHAT] Could not load target chats: {e}")
-
-
-def _save_target_chats():
-    try:
-        with open(_SETCHAT_FILE, "w") as f:
-            json.dump({str(k): v for k, v in _user_target_chats.items()}, f)
-    except Exception as e:
-        print(f"[SETCHAT] Could not save target chats: {e}")
-
-
-_load_target_chats()
-
-
-def get_target_chat(user_id):
-    return _user_target_chats.get(user_id, None)
+from telethon import events
 
 
 # Pattern handles both /setchat and /setchat@botname (required for group commands)
@@ -62,7 +31,6 @@ async def set_chat(event):
         )
         return
 
-    # Strip @botname suffix from the command if present before parsing the arg
     raw_arg = args[1].strip()
     try:
         chat_id = int(raw_arg)
@@ -85,8 +53,7 @@ async def set_chat(event):
         if member and member.status:
             status_name = str(member.status)
             if 'ADMIN' in status_name.upper() or 'OWNER' in status_name.upper():
-                _user_target_chats[event.sender_id] = chat_id
-                _save_target_chats()
+                set_target_chat(event.sender_id, chat_id)
                 await event.reply(
                     f"✅ **Transfer chat set!**\n\n"
                     f"**Chat:** {chat_title}\n**ID:** `{chat_id}`\n**Bot status:** Admin\n\n"
@@ -99,15 +66,13 @@ async def set_chat(event):
                     "Add the bot as admin and try again."
                 )
         else:
-            _user_target_chats[event.sender_id] = chat_id
-            _save_target_chats()
+            set_target_chat(event.sender_id, chat_id)
             await event.reply(
                 f"✅ **Transfer chat set!**\n\n**Chat:** {chat_title}\n**ID:** `{chat_id}`\n\n"
                 f"⚠️ Warning: Could not verify admin status. Pinning may not work."
             )
     except Exception as e:
-        _user_target_chats[event.sender_id] = chat_id
-        _save_target_chats()
+        set_target_chat(event.sender_id, chat_id)
         await event.reply(
             f"✅ **Transfer chat set!**\n\n**Chat:** {chat_title}\n**ID:** `{chat_id}`\n\n"
             f"⚠️ Warning: Could not verify admin status ({str(e)[:100]})."
@@ -118,7 +83,7 @@ async def set_chat(event):
 async def my_chat(event):
     if not is_authorized(event.sender_id):
         return
-    target = _user_target_chats.get(event.sender_id)
+    target = get_target_chat(event.sender_id)
     if target:
         try:
             chat = await Bot.get_chat(target)
@@ -144,9 +109,8 @@ async def my_chat(event):
 async def clear_chat(event):
     if not is_authorized(event.sender_id):
         return
-    if event.sender_id in _user_target_chats:
-        del _user_target_chats[event.sender_id]
-        _save_target_chats()
+    if get_target_chat(event.sender_id) is not None:
+        clear_target_chat(event.sender_id)
         await event.reply("✅ **Transfer chat cleared.**\n\nContent will now be saved to the chat where you send the link.")
     else:
         await event.reply("No custom transfer chat was set.")

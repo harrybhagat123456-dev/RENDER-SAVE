@@ -2,12 +2,9 @@
 
 import time, os
 
-from .. import bot as Drone
-from .. import Bot
-from .. import is_authorized
+from .. import bot as Drone, Bot, is_authorized, get_target_chat
 from main.plugins.pyroplug import get_msg
 from main.plugins.helpers import get_link, join
-from main.plugins.setchat import get_target_chat
 
 import main as _main_module
 
@@ -42,15 +39,12 @@ async def clone(event):
         )
         return
 
-    # Determine where to send status messages:
-    # - In a group: reply in the group
-    # - In private: reply in DM
+    # Status messages go back to the same chat (group or DM)
     status_chat = event.chat_id
 
-    # Determine where to save the content:
-    # 1. If user has a /setchat target, use that
-    # 2. In a group with no setchat: save in the group
-    # 3. In private with no setchat: save in DM
+    # Destination for saved content:
+    # 1. User's /setchat target (if configured)
+    # 2. Otherwise the same chat where the link was sent
     target = get_target_chat(event.sender_id) or event.chat_id
 
     edit = await event.reply("Processing!")

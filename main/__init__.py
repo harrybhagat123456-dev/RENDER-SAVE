@@ -7,7 +7,7 @@ from telethon.sessions import StringSession
 from telethon.sync import TelegramClient
 
 from decouple import config
-import logging, time, sys, traceback, os
+import logging, time, sys, traceback, os, json
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
@@ -67,6 +67,48 @@ _load_auth_users()
 print(f"[AUTH] Authorized users: {AUTHORIZED_USERS}")
 
 # ---------------------------------------------------------------------------
+# Target chat store — single source of truth for /setchat data.
+# Lives here so every plugin imports from the same module instance,
+# avoiding the double-load bug caused by load_plugins() re-executing files.
+# ---------------------------------------------------------------------------
+_SETCHAT_FILE = os.path.join(DATA_DIR, "user_target_chats.json")
+_user_target_chats: dict = {}
+
+def _load_target_chats():
+    try:
+        if os.path.exists(_SETCHAT_FILE):
+            with open(_SETCHAT_FILE) as f:
+                raw = json.load(f)
+            for k, v in raw.items():
+                _user_target_chats[int(k)] = int(v)
+            print(f"[SETCHAT] Loaded {len(_user_target_chats)} saved target chats")
+    except Exception as e:
+        print(f"[SETCHAT] Could not load target chats: {e}")
+
+def _save_target_chats():
+    try:
+        with open(_SETCHAT_FILE, "w") as f:
+            json.dump({str(k): v for k, v in _user_target_chats.items()}, f)
+    except Exception as e:
+        print(f"[SETCHAT] Could not save target chats: {e}")
+
+def get_target_chat(user_id: int):
+    """Return the configured transfer chat for a user, or None."""
+    return _user_target_chats.get(user_id, None)
+
+def set_target_chat(user_id: int, chat_id: int):
+    """Set and persist the transfer chat for a user."""
+    _user_target_chats[user_id] = chat_id
+    _save_target_chats()
+
+def clear_target_chat(user_id: int):
+    """Remove and persist the removal of a user's transfer chat."""
+    _user_target_chats.pop(user_id, None)
+    _save_target_chats()
+
+_load_target_chats()
+
+# ---------------------------------------------------------------------------
 # MONKEY-PATCH: Fix Pyrogram's get_peer_type to handle unknown channel IDs
 # ---------------------------------------------------------------------------
 _original_get_peer_type = pyrogram.utils.get_peer_type
@@ -93,20 +135,10 @@ print("[PATCH] Applied get_peer_type patch — Pyrogram won't crash on unknown c
 # without any changes.
 # ---------------------------------------------------------------------------
 class ClientRef:
-    """Mutable proxy around a Pyrogram Client.
-
-    Usage
-    -----
-    userbot = ClientRef()          # empty — bool(userbot) is False
-    userbot.set(some_client)       # attach a running client
-    userbot.clear()                # detach & disconnect
-    await userbot.get_messages(…)  # proxied to underlying client
-    """
+    """Mutable proxy around a Pyrogram Client."""
 
     def __init__(self):
         self._client = None
-
-    # --- state management ---------------------------------------------------
 
     def set(self, client):
         self._client = client
@@ -123,18 +155,13 @@ class ClientRef:
         except Exception:
             return False
 
-    # --- bool / repr --------------------------------------------------------
-
     def __bool__(self):
         return self._client is not None
 
     def __repr__(self):
         return f"<ClientRef client={self._client!r}>"
 
-    # --- transparent proxy --------------------------------------------------
-
     def __getattr__(self, name):
-        # Avoid infinite recursion for our own attributes
         if name.startswith('_') or name in ('set', 'clear', 'is_connected'):
             raise AttributeError(name)
         if self._client is None:

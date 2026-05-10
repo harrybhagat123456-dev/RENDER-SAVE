@@ -1,7 +1,6 @@
 import os
-from .. import bot as Drone, AUTH, is_authorized
+from .. import bot as Drone, AUTH, _user_target_chats
 from main.plugins.pyroplug import msg_map, _pinned_cache, _resolved_peers
-from main.plugins.setchat import _user_target_chats
 from main.plugins.batch import batch
 
 import main as _main_module
@@ -34,6 +33,12 @@ async def reset_cmd(event):
 
     if _user_target_chats:
         _user_target_chats.clear()
+        try:
+            from .. import _SETCHAT_FILE
+            if os.path.exists(_SETCHAT_FILE):
+                os.remove(_SETCHAT_FILE)
+        except Exception:
+            pass
         cleared.append("Transfer chat settings")
 
     lines = "\n".join(f"• {item}" for item in cleared)
