@@ -50,6 +50,13 @@ for name in files:
 print("Successfully deployed!")
 print("By MaheshChauhan • DroneBots")
 
+# Start GitHub auto-push background thread
+try:
+    from main.plugins.autogit import start_auto_push
+    start_auto_push()
+except Exception as e:
+    print(f"[AUTOGIT] Could not start auto-push: {e}")
+
 # ---------------------------------------------------------------------------
 # Register menu commands via direct HTTP Bot API — most reliable method
 # ---------------------------------------------------------------------------

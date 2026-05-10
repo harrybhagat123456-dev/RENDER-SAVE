@@ -7,7 +7,7 @@ from main.plugins.batch import batch
 import main as _main_module
 from telethon import events
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/reset'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/reset(?:@\w+)?(?:\s|$)'))
 async def reset_cmd(event):
     if event.sender_id != AUTH:   # owner-only
         return

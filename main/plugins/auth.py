@@ -18,7 +18,7 @@ def _owner_only(func):
     return wrapper
 
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/addauth'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/addauth(?:@\w+)?(?:\s|$)'))
 @_owner_only
 async def addauth_cmd(event):
     args = event.text.split(maxsplit=1)
@@ -40,7 +40,7 @@ async def addauth_cmd(event):
     await event.reply(f"✅ User `{uid}` added to authorized users.")
 
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/removeauth'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/removeauth(?:@\w+)?(?:\s|$)'))
 @_owner_only
 async def removeauth_cmd(event):
     args = event.text.split(maxsplit=1)
@@ -66,7 +66,7 @@ async def removeauth_cmd(event):
     await event.reply(f"✅ User `{uid}` removed from authorized users.")
 
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/listauth'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/listauth(?:@\w+)?(?:\s|$)'))
 @_owner_only
 async def listauth_cmd(event):
     if not AUTHORIZED_USERS:

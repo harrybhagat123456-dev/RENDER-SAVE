@@ -17,7 +17,7 @@ from ethon.pyfunc import video_metadata
 
 batch = []
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/cancel'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/cancel(?:@\w+)?(?:\s|$)'))
 async def cancel(event):
     if not is_authorized(event.sender_id):
         return
@@ -26,11 +26,12 @@ async def cancel(event):
     batch.clear()
     await event.reply("Done.")
 
-@Drone.on(events.NewMessage(incoming=True, pattern='/batch'))
+@Drone.on(events.NewMessage(incoming=True, pattern=r'/batch(?:@\w+)?(?:\s|$)'))
 async def _batch(event):
     if not is_authorized(event.sender_id):
         return
     if not event.is_private:
+        await event.reply("Please use /batch in a private chat with me.")
         return
 
     if not _main_module.userbot:
