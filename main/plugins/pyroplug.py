@@ -122,18 +122,16 @@ def thumbnail(sender):
 # ---------------------------------------------------------------------------
 async def get_pinned_msg_ids(userbot_client, client, chat_id):
     """Fetch and cache ALL pinned message IDs from a source chat.
-    Uses Pyrogram's PINNED_MESSAGES search filter to get every pinned message,
-    not just the latest one."""
+    Uses Pyrogram's PINNED filter to get every pinned message."""
     if chat_id in _pinned_cache:
         return _pinned_cache[chat_id]
 
     pinned_ids = set()
 
-    # Method 1: Pyrogram search_messages with PINNED_MESSAGES filter
-    # This is the most reliable way — it returns ALL currently pinned messages
+    # Method 1: Pyrogram search_messages with PINNED filter (correct enum value)
     try:
         from pyrogram.enums import MessagesFilter
-        async for msg in userbot_client.search_messages(chat_id, filter=MessagesFilter.PINNED_MESSAGES):
+        async for msg in userbot_client.search_messages(chat_id, filter=MessagesFilter.PINNED):
             pinned_ids.add(msg.id)
         if pinned_ids:
             print(f"[PIN] Found {len(pinned_ids)} pinned messages via search_messages filter: {pinned_ids}")
@@ -173,14 +171,17 @@ async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
 
     Strategy:
       1. Skip if the message was not pinned in the source chat.
-      2. Skip silently for user DMs — bots cannot pin in DMs.
-      3. Try bot client first (needs pin-messages admin right in the channel).
-      4. If bot fails, fall back to the userbot (works if userbot is admin or owner).
+      2. Skip for user DMs — bots cannot pin in DMs (positive IDs).
+      3. Try bot client first (needs pin-messages admin right in channel/group).
+      4. If bot fails, fall back to the userbot.
     """
+    print(f"[PIN] pin_if_channel called: chat_id={chat_id} msg_id={msg_id} was_pinned={was_pinned}")
     if not was_pinned:
+        print(f"[PIN] Skipping — message {msg_id} was not pinned in source chat")
         return
     # Bots cannot pin messages in user DMs (positive IDs = user/DM chats)
     if isinstance(chat_id, int) and chat_id > 0:
+        print(f"[PIN] Skipping — destination {chat_id} is a user DM (bots cannot pin in DMs)")
         return
     # --- Attempt 1: bot client ---
     try:
@@ -189,7 +190,7 @@ async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
             message_id=msg_id,
             both_sides=False
         )
-        print(f"[PIN] Pinned message {msg_id} in {chat_id} via bot")
+        print(f"[PIN] ✅ Pinned message {msg_id} in {chat_id} via bot")
         return
     except Exception as e:
         print(f"[PIN] Bot could not pin message {msg_id} in {chat_id}: {e} — trying userbot fallback")
@@ -202,11 +203,11 @@ async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
                 message_id=msg_id,
                 both_sides=False
             )
-            print(f"[PIN] Pinned message {msg_id} in {chat_id} via userbot")
+            print(f"[PIN] ✅ Pinned message {msg_id} in {chat_id} via userbot")
         else:
-            print(f"[PIN] Userbot not available to pin message {msg_id} in {chat_id}")
+            print(f"[PIN] ❌ Userbot not connected — cannot pin message {msg_id} in {chat_id}")
     except Exception as e2:
-        print(f"[PIN] Userbot also could not pin message {msg_id} in {chat_id}: {e2}")
+        print(f"[PIN] ❌ Userbot also failed to pin message {msg_id} in {chat_id}: {e2}")
 
 
 # ---------------------------------------------------------------------------
