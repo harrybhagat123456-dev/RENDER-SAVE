@@ -121,47 +121,41 @@ def thumbnail(sender):
 # Pin the message to the saved channel
 # ---------------------------------------------------------------------------
 async def get_pinned_msg_ids(userbot_client, client, chat_id):
-    """Fetch and cache ALL pinned message IDs from a source chat.
-    Uses Pyrogram's PINNED filter to get every pinned message."""
-    if chat_id in _pinned_cache:
-        return _pinned_cache[chat_id]
-
+    """Fetch ALL currently pinned message IDs from a source chat — always fresh, no cache.
+    Uses three methods in order of reliability."""
     pinned_ids = set()
 
-    # Method 1: Pyrogram search_messages with PINNED filter (correct enum value)
+    # Method 1: userbot search_messages with PINNED filter — most complete
     try:
         from pyrogram.enums import MessagesFilter
         async for msg in userbot_client.search_messages(chat_id, filter=MessagesFilter.PINNED):
             pinned_ids.add(msg.id)
         if pinned_ids:
-            print(f"[PIN] Found {len(pinned_ids)} pinned messages via search_messages filter: {pinned_ids}")
+            print(f"[PIN] Found {len(pinned_ids)} pinned messages in {chat_id}: {pinned_ids}")
     except Exception as e:
-        print(f"[PIN] search_messages filter failed: {e}")
+        print(f"[PIN] search_messages PINNED failed for {chat_id}: {e}")
 
-    # Method 2: Fallback — get_chat returns the single latest pinned message
+    # Method 2: userbot get_chat — returns the single latest pinned message
     if not pinned_ids:
         try:
             chat_info = await userbot_client.get_chat(chat_id)
-            if chat_info and hasattr(chat_info, 'pinned_message') and chat_info.pinned_message:
+            if chat_info and getattr(chat_info, 'pinned_message', None):
                 pinned_ids.add(chat_info.pinned_message.id)
-                print(f"[PIN] Found pinned message via userbot get_chat: {chat_info.pinned_message.id}")
+                print(f"[PIN] Found pinned via userbot get_chat: {chat_info.pinned_message.id}")
         except Exception as e:
             print(f"[PIN] userbot get_chat failed: {e}")
 
-    # Method 3: Last resort — try the bot client (works for public chats)
+    # Method 3: bot client get_chat — works for public chats
     if not pinned_ids:
         try:
             chat_info = await client.get_chat(chat_id)
-            if chat_info and hasattr(chat_info, 'pinned_message') and chat_info.pinned_message:
+            if chat_info and getattr(chat_info, 'pinned_message', None):
                 pinned_ids.add(chat_info.pinned_message.id)
-                print(f"[PIN] Found pinned message via bot get_chat: {chat_info.pinned_message.id}")
+                print(f"[PIN] Found pinned via bot get_chat: {chat_info.pinned_message.id}")
         except Exception as e:
             print(f"[PIN] bot get_chat failed: {e}")
 
-    _pinned_cache[chat_id] = pinned_ids
-    if pinned_ids:
-        print(f"[PIN] Cached {len(pinned_ids)} pinned message IDs for chat {chat_id}: {pinned_ids}")
-    else:
+    if not pinned_ids:
         print(f"[PIN] No pinned messages found for chat {chat_id}")
     return pinned_ids
 
@@ -882,20 +876,12 @@ async def get_msg(userbot, client, bot, sender, edit_id, status_chat, msg_link, 
             await resolve_peer_safe(userbot, chat)
             msg = await userbot.get_messages(chat, msg_id)
 
-            # Check if this message was pinned in the original chat.
-            # Two-stage check:
-            #   1. Direct: Pyrogram sets msg.pinned=True on the message object itself
-            #      when it is currently pinned (from Telegram's MTProto flags).
-            #   2. Fallback: search all pinned message IDs for the chat and check.
+            # Check if this message is currently pinned in the source chat.
             try:
-                was_pinned = bool(getattr(msg, 'pinned', False))
+                pinned_ids = await get_pinned_msg_ids(userbot, client, chat)
+                was_pinned = msg_id in pinned_ids
                 if was_pinned:
-                    print(f"[PIN] Message {msg_id} is pinned (direct msg.pinned flag)")
-                else:
-                    pinned_ids = await get_pinned_msg_ids(userbot, client, chat)
-                    was_pinned = msg_id in pinned_ids
-                    if was_pinned:
-                        print(f"[PIN] Message {msg_id} was pinned in original chat (via pinned list)")
+                    print(f"[PIN] Message {msg_id} IS pinned in source chat — will pin in destination")
             except Exception as e:
                 print(f"[PIN] Could not check pinned status: {e}")
 
@@ -1239,17 +1225,12 @@ async def get_msg(userbot, client, bot, sender, edit_id, status_chat, msg_link, 
         try:
             msg = await client.get_messages(chat, msg_id)
 
-            # Check if this message was pinned in the original public chat.
-            # Two-stage check: direct msg.pinned flag first, then full pinned list.
+            # Check if this message is currently pinned in the source chat.
             try:
-                was_pinned = bool(getattr(msg, 'pinned', False))
+                pinned_ids = await get_pinned_msg_ids(userbot, client, chat)
+                was_pinned = msg_id in pinned_ids
                 if was_pinned:
-                    print(f"[PIN] Message {msg_id} is pinned (direct msg.pinned flag, public chat)")
-                else:
-                    pinned_ids = await get_pinned_msg_ids(userbot, client, chat)
-                    was_pinned = msg_id in pinned_ids
-                    if was_pinned:
-                        print(f"[PIN] Message {msg_id} was pinned in original public chat (via pinned list)")
+                    print(f"[PIN] Message {msg_id} IS pinned in source chat — will pin in destination")
             except Exception as e:
                 print(f"[PIN] Could not check pinned status for public chat: {e}")
 
