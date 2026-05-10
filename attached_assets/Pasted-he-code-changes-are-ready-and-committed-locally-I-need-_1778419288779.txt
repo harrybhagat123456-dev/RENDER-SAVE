@@ -1,0 +1,50 @@
+he code changes are ready and committed locally. I need your PAT token to push to the RENDER-SAVE repo.
+
+Here's a summary of what I implemented:
+
+Service Message Handling — What Changed
+The Problem:
+Pyrogram's copy_message() explicitly refuses service messages:
+
+text
+
+Service messages cannot be copied. chat_id: -1002663154678, message_id: 9
+And since service messages have no msg.text and no downloadable media, they were silently skipped with:
+
+text
+
+[WARN] Could not save message 8 — no text, no downloadable media
+The Solution: format_service_message()
+A new function that detects service messages and converts their information into readable text. It covers ALL Telegram service message types:
+
+Service Type
+What Gets Saved
+new_chat_members	"New member(s) joined: John Doe (@john)"
+left_chat_member	"Member left: Jane (@jane)"
+new_chat_title	"Chat title changed to: New Name"
+new_chat_photo	"Chat photo was updated"
+delete_chat_photo	"Chat photo was deleted"
+group_chat_created	"Group chat was created"
+supergroup_chat_created	"Supergroup chat was created"
+channel_chat_created	"Channel was created"
+pinned_message	"Pinned message (ID: 123): preview text..."
+video_chat_started	"Video chat / live stream started"
+video_chat_ended	"Video chat / live stream ended"
+forum_topic_created	"Forum topic created: Topic Name"
+giveaway_*	Giveaway events
+web_app_data	Web App data
+Unknown service type	Falls back to raw action type name
+
+Three layers of defense:
+
+Private channel path (line ~953) — catches service messages before copy_message is ever called
+Public chat path (line ~1323) — catches service messages before client.copy_message()
+copy_message_fallback() (line ~660) — if somehow a service message still reaches copy_message and gets rejected, it catches the error and converts to text
+Example output in your saved channel:
+Instead of skipping message 9, you'll now see:
+
+text
+
+[Service Message]
+Pinned message (ID: 16912): Some text of the pinned message...
+Please provide a GitHub PAT token (with "Contents" write permission) so I can push this to harrybhagat123456-dev/RENDER-SAVE.

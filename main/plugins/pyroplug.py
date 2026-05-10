@@ -671,6 +671,125 @@ async def forward_poll(client, target_chat, msg, status_msg, original_chat=None,
 
 
 # ---------------------------------------------------------------------------
+# Service message detector + formatter
+# ---------------------------------------------------------------------------
+def format_service_message(msg):
+    """
+    If msg is a Telegram service message, return a human-readable text
+    description. Returns None if the message is NOT a service message.
+
+    Covers: new members, left member, title/photo changes, pinned messages,
+    video chats, forum topics, giveaways, migrations, and unknown actions.
+    """
+    parts = ["📋 **[Service Message]**"]
+
+    def _user_str(u):
+        if u is None:
+            return "Unknown"
+        name = f"{u.first_name or ''} {u.last_name or ''}".strip() or str(u.id)
+        if getattr(u, 'username', None):
+            name += f" (@{u.username})"
+        return name
+
+    if getattr(msg, 'new_chat_members', None):
+        names = ", ".join(_user_str(m) for m in msg.new_chat_members)
+        parts.append(f"New member(s) joined: {names}")
+        return "\n".join(parts)
+
+    if getattr(msg, 'left_chat_member', None):
+        parts.append(f"Member left: {_user_str(msg.left_chat_member)}")
+        return "\n".join(parts)
+
+    if getattr(msg, 'new_chat_title', None):
+        parts.append(f"Chat title changed to: **{msg.new_chat_title}**")
+        return "\n".join(parts)
+
+    if getattr(msg, 'new_chat_photo', None):
+        parts.append("Chat photo was updated")
+        return "\n".join(parts)
+
+    if getattr(msg, 'delete_chat_photo', None):
+        parts.append("Chat photo was deleted")
+        return "\n".join(parts)
+
+    if getattr(msg, 'group_chat_created', None):
+        parts.append("Group chat was created")
+        return "\n".join(parts)
+
+    if getattr(msg, 'supergroup_chat_created', None):
+        parts.append("Supergroup chat was created")
+        return "\n".join(parts)
+
+    if getattr(msg, 'channel_chat_created', None):
+        parts.append("Channel was created")
+        return "\n".join(parts)
+
+    if getattr(msg, 'pinned_message', None):
+        pm = msg.pinned_message
+        preview = (pm.text or pm.caption or "")[:120]
+        suffix = "..." if len(preview) == 120 else ""
+        parts.append(f"Pinned message (ID: {pm.id}): {preview}{suffix}" if preview
+                     else f"Pinned message (ID: {pm.id})")
+        return "\n".join(parts)
+
+    if getattr(msg, 'video_chat_started', None):
+        parts.append("Video chat / live stream started")
+        return "\n".join(parts)
+
+    if getattr(msg, 'video_chat_ended', None):
+        dur = getattr(msg.video_chat_ended, 'duration', None)
+        parts.append("Video chat / live stream ended" + (f" (duration: {dur}s)" if dur else ""))
+        return "\n".join(parts)
+
+    if getattr(msg, 'video_chat_scheduled', None):
+        parts.append("Video chat scheduled")
+        return "\n".join(parts)
+
+    if getattr(msg, 'forum_topic_created', None):
+        name = getattr(msg.forum_topic_created, 'name', 'Unknown')
+        parts.append(f"Forum topic created: **{name}**")
+        return "\n".join(parts)
+
+    if getattr(msg, 'forum_topic_closed', None):
+        parts.append("Forum topic closed")
+        return "\n".join(parts)
+
+    if getattr(msg, 'forum_topic_reopened', None):
+        parts.append("Forum topic reopened")
+        return "\n".join(parts)
+
+    for gattr in ('giveaway', 'giveaway_created', 'giveaway_winners', 'giveaway_completed'):
+        if getattr(msg, gattr, None):
+            parts.append(f"Giveaway event ({gattr.replace('_', ' ')})")
+            return "\n".join(parts)
+
+    if getattr(msg, 'web_app_data', None):
+        parts.append(f"Web App data received")
+        return "\n".join(parts)
+
+    if getattr(msg, 'migrate_to_chat_id', None):
+        parts.append(f"Group migrated to supergroup (ID: {msg.migrate_to_chat_id})")
+        return "\n".join(parts)
+
+    if getattr(msg, 'migrate_from_chat_id', None):
+        parts.append(f"Supergroup migrated from group (ID: {msg.migrate_from_chat_id})")
+        return "\n".join(parts)
+
+    # Final check: no text, no media, no empty flag → unknown service message
+    has_text  = bool(getattr(msg, 'text',  None))
+    has_media = bool(getattr(msg, 'media', None))
+    is_empty  = bool(getattr(msg, 'empty', False))
+    if not has_text and not has_media and not is_empty:
+        raw    = getattr(msg, '_raw', None)
+        action = type(getattr(raw, 'action', None)).__name__ if raw else None
+        label  = f" ({action})" if action and action not in ('NoneType', 'None') else ""
+        parts.append(f"Unknown service message{label}")
+        return "\n".join(parts)
+
+    return None   # Not a service message
+
+
+# ---------------------------------------------------------------------------
 # Fallback: copy message using userbot (handles stickers, animations, etc.)
 # ---------------------------------------------------------------------------
 async def copy_message_fallback(userbot_client, target_chat, source_chat, msg_id, caption=None):
@@ -691,6 +810,11 @@ async def copy_message_fallback(userbot_client, target_chat, source_chat, msg_id
         )
         return sent_msg
     except Exception as e:
+        # Layer 3 — service messages cannot be copied; caller should have
+        # caught this earlier, but guard here as a last resort.
+        if "Service messages cannot be copied" in str(e):
+            print(f"[SERVICE] copy_message_fallback: service message {msg_id} skipped gracefully")
+            return None
         print(f"copy_message_fallback failed: {e}")
         return None
 
@@ -755,6 +879,17 @@ async def get_msg(userbot, client, bot, sender, edit_id, status_chat, msg_link, 
                         print(f"[PIN] Message {msg_id} was pinned in original chat (via pinned list)")
             except Exception as e:
                 print(f"[PIN] Could not check pinned status: {e}")
+
+            # ---- SERVICE MESSAGE (layer 1 — private/bot-API chat) ----
+            service_text = format_service_message(msg)
+            if service_text is not None:
+                edit = await client.edit_message_text(status_chat, edit_id, "Saving service message...")
+                sent_msg = await client.send_message(sender, service_text)
+                if sent_msg:
+                    register_msg_mapping(chat, msg_id, sender, sent_msg.id)
+                    await pin_if_channel(client, sender, sent_msg.id, was_pinned=was_pinned)
+                await edit.delete()
+                return
 
             # ---- POLL HANDLING ----
             if msg.poll is not None:
@@ -1098,6 +1233,16 @@ async def get_msg(userbot, client, bot, sender, edit_id, status_chat, msg_link, 
                         print(f"[PIN] Message {msg_id} was pinned in original public chat (via pinned list)")
             except Exception as e:
                 print(f"[PIN] Could not check pinned status for public chat: {e}")
+
+            # ---- SERVICE MESSAGE (layer 2 — public chat) ----
+            service_text = format_service_message(msg)
+            if service_text is not None:
+                sent_msg = await client.send_message(sender, service_text)
+                if sent_msg:
+                    register_msg_mapping(chat, msg_id, sender, sent_msg.id)
+                    await pin_if_channel(client, sender, sent_msg.id, was_pinned=was_pinned)
+                await edit.delete()
+                return
 
             # ---- POLL HANDLING for public chats ----
             if msg.poll is not None:

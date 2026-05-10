@@ -1,0 +1,69 @@
+I can see the issue — Pyrogram explicitly blocks copying service messages (Service messages cannot be copied). Let me analyze the devgaganin v3 repo to see how they handle this, then fix your RENDER-SAVE repo.
+
+
+Terminal
+Clone devgaganin v3 repo
+
+Terminal
+Clone user's RENDER-SAVE repo
+
+Terminal
+List all Python files in devgaganin v3
+
+Terminal
+List all Python files in RENDER-SAVE
+Let me read the key files from both repos — the devgaganin v3's core logic and your RENDER-SAVE's pyroplug.py:
+
+
+Read File
+/home/z/my-project/Save-Restricted-Content-Bot-v3/utils/func.py
+
+Read File
+/home/z/my-project/Save-Restricted-Content-Bot-v3/app.py
+
+Read File
+/home/z/my-project/Save-Restricted-Content-Bot-v3/main.py
+
+Read File
+/home/z/my-project/Save-Restricted-Content-Bot-v3/shared_client.py
+
+Read File
+/home/z/my-project/Save-Restricted-Content-Bot-v3/plugins/batch.py
+Now let me read the user's current RENDER-SAVE pyroplug.py to see the existing code:
+
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Grep
+async def get_msg|except \(ChannelBanned|t\.me/|service|pinned_msg_ids
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+
+Terminal
+Count lines in pyroplug.py
+
+Read File
+/home/z/my-project/RENDER-SAVE/main/plugins/pyroplug.py
+Now I have the full picture. The issue is clear:
+
+Service messages (channel created, title changed, new members, pinned message notifications, etc.) have msg.service = True
+Pyrogram's copy_message() explicitly refuses: "Service messages cannot be copied"
+Service messages have no msg.text, no msg.media, no downloadable content — so they fall through to the [WARN] Could not save message line
+The devgaganin v3 repo also doesn't handle service messages explicitly
+Solution: Detect service messages and convert their information into a formatted text message, then send that as a regular text message.
+
+Let me implement this now:
