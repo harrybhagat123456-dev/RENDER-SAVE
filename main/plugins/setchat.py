@@ -5,7 +5,7 @@
 
 import os
 from .. import bot as Drone
-from .. import userbot, Bot, AUTH
+from .. import Bot, AUTH
 from main.plugins.pyroplug import get_msg
 from main.plugins.helpers import get_link, join
 

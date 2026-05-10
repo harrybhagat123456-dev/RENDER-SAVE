@@ -8,9 +8,11 @@ Plugin for both public & private channels!
 import time, os, asyncio
 
 from .. import bot as Drone
-from .. import userbot, Bot, AUTH
+from .. import Bot, AUTH
 from main.plugins.pyroplug import get_bulk_msg
 from main.plugins.helpers import get_link, screenshot
+
+import main as _main_module
 
 from telethon import events, Button, errors
 from telethon.tl.types import DocumentAttributeVideo
@@ -33,6 +35,15 @@ async def cancel(event):
 async def _batch(event):
     if not event.is_private:
         return
+
+    # Check userbot is logged in
+    if not _main_module.userbot:
+        await event.reply(
+            "⚠️ **Userbot is not logged in.**\n\n"
+            "Send /login to authenticate a Telegram account first."
+        )
+        return
+
     if event.sender_id in batch:
         return await event.reply("You've already started one batch, wait for it to complete.")
     async with Drone.conversation(event.chat_id) as conv: 
@@ -65,7 +76,7 @@ async def _batch(event):
                 await conv.send_message("Range must be an integer!")
                 return conv.cancel()
             batch.append(event.sender_id)
-            await run_batch(userbot, Bot, event.sender_id, _link, value) 
+            await run_batch(_main_module.userbot, Bot, event.sender_id, _link, value) 
             conv.cancel()
             batch.clear()
 
@@ -102,4 +113,3 @@ async def run_batch(userbot, client, sender, link, _range):
         protection = await client.send_message(sender, f"Sleeping for `{timer}` seconds to avoid Floodwaits and Protect account!")
         await asyncio.sleep(timer)
         await protection.delete()
-            
