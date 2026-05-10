@@ -1,4 +1,4 @@
-import glob, asyncio
+import glob, asyncio, threading, os
 from pathlib import Path
 from main.utils import load_plugins
 import logging, requests
@@ -10,6 +10,34 @@ from telethon.tl.types import BotCommand, BotCommandScopeDefault
 
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
+
+# ---------------------------------------------------------------------------
+# Health-check HTTP server (required by Render Web Service port detection)
+# Listens on $PORT (default 10000) and replies 200 OK to every request.
+# Runs in a daemon thread so it doesn't block the bot.
+# ---------------------------------------------------------------------------
+def _start_health_server():
+    import http.server, socketserver
+
+    port = int(os.environ.get("PORT", 10000))
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"OK")
+        def log_message(self, *_):
+            pass   # silence request logs
+
+    try:
+        with socketserver.TCPServer(("", port), _Handler) as httpd:
+            print(f"[HEALTH] Health-check server listening on port {port}")
+            httpd.serve_forever()
+    except Exception as e:
+        print(f"[HEALTH] Could not start health server: {e}")
+
+_health_thread = threading.Thread(target=_start_health_server, daemon=True)
+_health_thread.start()
 
 path = "main/plugins/*.py"
 files = glob.glob(path)
