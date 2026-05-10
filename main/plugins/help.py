@@ -21,6 +21,7 @@ HELP_TEXT = """
 **Other:**
 /start — Welcome message
 /help — Show this help message
+/reset — Clear all saved history and reset bot state
 
 **How to use:**
 1. Send /login and authenticate your account

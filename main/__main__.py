@@ -36,6 +36,7 @@ _COMMANDS = [
     {"command": "mychat",    "description": "View your current transfer channel"},
     {"command": "clearchat", "description": "Reset transfer channel to DM"},
     {"command": "cancel",    "description": "Cancel active batch operation"},
+    {"command": "reset",     "description": "Clear saved history and reset bot state"},
 ]
 
 try:
