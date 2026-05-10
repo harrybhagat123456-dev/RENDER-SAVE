@@ -169,23 +169,44 @@ async def get_pinned_msg_ids(userbot_client, client, chat_id):
 
 
 async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
-    """Pin a message in channels/groups only if it was pinned in the original chat.
-    Bots get BOT_ONESIDE_NOT_AVAIL error when trying to pin in DMs."""
-    # Skip pinning in private chats (user DMs have positive IDs)
-    if isinstance(chat_id, int) and chat_id > 0:
-        return
-    # Only pin if the original message was pinned
+    """Pin a message in the destination chat if it was pinned in the original chat.
+
+    Strategy:
+      1. Skip if the message was not pinned in the source chat.
+      2. Skip silently for user DMs — bots cannot pin in DMs.
+      3. Try bot client first (needs pin-messages admin right in the channel).
+      4. If bot fails, fall back to the userbot (works if userbot is admin or owner).
+    """
     if not was_pinned:
         return
+    # Bots cannot pin messages in user DMs (positive IDs = user/DM chats)
+    if isinstance(chat_id, int) and chat_id > 0:
+        return
+    # --- Attempt 1: bot client ---
     try:
         await client.pin_chat_message(
             chat_id=chat_id,
             message_id=msg_id,
             both_sides=False
         )
-        print(f"[PIN] Pinned message {msg_id} in {chat_id}")
+        print(f"[PIN] Pinned message {msg_id} in {chat_id} via bot")
+        return
     except Exception as e:
-        print(f"Could not pin message {msg_id} in {chat_id}: {e}")
+        print(f"[PIN] Bot could not pin message {msg_id} in {chat_id}: {e} — trying userbot fallback")
+    # --- Attempt 2: userbot fallback ---
+    try:
+        from .. import userbot as _userbot
+        if _userbot and _userbot.is_connected:
+            await _userbot.pin_chat_message(
+                chat_id=chat_id,
+                message_id=msg_id,
+                both_sides=False
+            )
+            print(f"[PIN] Pinned message {msg_id} in {chat_id} via userbot")
+        else:
+            print(f"[PIN] Userbot not available to pin message {msg_id} in {chat_id}")
+    except Exception as e2:
+        print(f"[PIN] Userbot also could not pin message {msg_id} in {chat_id}: {e2}")
 
 
 # ---------------------------------------------------------------------------
