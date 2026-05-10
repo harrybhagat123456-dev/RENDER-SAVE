@@ -26,17 +26,20 @@ print("By MaheshChauhan • DroneBots")
 # Register menu commands via direct HTTP Bot API — most reliable method
 # ---------------------------------------------------------------------------
 _COMMANDS = [
-    {"command": "start",     "description": "Start the bot"},
-    {"command": "help",      "description": "List all available commands"},
-    {"command": "login",     "description": "Login your Telegram account"},
-    {"command": "logout",    "description": "Logout and remove saved session"},
-    {"command": "batch",     "description": "Save multiple messages in bulk"},
-    {"command": "history",   "description": "Resume saving from where you left off"},
-    {"command": "setchat",   "description": "Set transfer channel for saved content"},
-    {"command": "mychat",    "description": "View your current transfer channel"},
-    {"command": "clearchat", "description": "Reset transfer channel to DM"},
-    {"command": "cancel",    "description": "Cancel active batch operation"},
-    {"command": "reset",     "description": "Clear saved history and reset bot state"},
+    {"command": "start",      "description": "Start the bot"},
+    {"command": "help",       "description": "List all available commands"},
+    {"command": "login",      "description": "Login your Telegram account"},
+    {"command": "logout",     "description": "Logout and remove saved session"},
+    {"command": "batch",      "description": "Save multiple messages in bulk"},
+    {"command": "history",    "description": "Resume saving from where you left off"},
+    {"command": "setchat",    "description": "Set transfer channel for saved content"},
+    {"command": "mychat",     "description": "View your current transfer channel"},
+    {"command": "clearchat",  "description": "Reset transfer channel to DM"},
+    {"command": "cancel",     "description": "Cancel active batch operation"},
+    {"command": "reset",      "description": "Clear saved history and reset bot state"},
+    {"command": "addauth",    "description": "Grant a user access to bot commands"},
+    {"command": "removeauth", "description": "Revoke a user's access"},
+    {"command": "listauth",   "description": "List all authorized users"},
 ]
 
 try:

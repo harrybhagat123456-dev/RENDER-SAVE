@@ -4,29 +4,21 @@
 # /clearchat — reset to user's DM (default)
 
 import os
-from .. import bot as Drone
-from .. import Bot, AUTH
+from .. import bot as Drone, Bot, is_authorized
 from main.plugins.pyroplug import get_msg
 from main.plugins.helpers import get_link, join
 
 from telethon import events, Button
-from pyrogram.errors import ChatAdminRequired as PyroChatAdminRequired, Forbidden
 
-# Per-user target chat storage
-# Key: user_id, Value: chat_id (int)
 _user_target_chats = {}
 
 def get_target_chat(user_id):
-    """Get the user's custom target chat, or None (falls back to their DM)."""
     return _user_target_chats.get(user_id, None)
 
-@Drone.on(events.NewMessage(incoming=True, from_users=AUTH, pattern='/setchat'))
+@Drone.on(events.NewMessage(incoming=True, pattern='/setchat'))
 async def set_chat(event):
-    """
-    Set a custom target chat where content will be saved.
-    The bot must be an admin in that chat for pinning to work.
-    Usage: /setchat -100XXXXXXXXXX
-    """
+    if not is_authorized(event.sender_id):
+        return
     args = event.text.split(maxsplit=1)
     if len(args) < 2:
         await event.reply(
@@ -48,19 +40,16 @@ async def set_chat(event):
         await event.reply("Invalid chat ID. Must be a number like `-1002663154678`.")
         return
 
-    # Verify the bot can access this chat
     try:
         chat = await Bot.get_chat(chat_id)
         chat_title = chat.title if chat else "Unknown"
     except Exception as e:
         await event.reply(
-            f"**Cannot access chat** `{chat_id}`\n\n"
-            f"Error: {str(e)[:200]}\n\n"
+            f"**Cannot access chat** `{chat_id}`\n\nError: {str(e)[:200]}\n\n"
             "Make sure the bot is added as admin in that chat first."
         )
         return
 
-    # Verify the bot is admin
     try:
         member = await Bot.get_chat_member(chat_id, "me")
         if member and member.status:
@@ -69,51 +58,41 @@ async def set_chat(event):
                 _user_target_chats[event.sender_id] = chat_id
                 await event.reply(
                     f"**Transfer chat set!**\n\n"
-                    f"**Chat:** {chat_title}\n"
-                    f"**ID:** `{chat_id}`\n"
-                    f"**Bot status:** Admin\n\n"
+                    f"**Chat:** {chat_title}\n**ID:** `{chat_id}`\n**Bot status:** Admin\n\n"
                     f"All your saved content will now go to this chat.\n"
                     f"Use `/clearchat` to reset to default."
                 )
             else:
                 await event.reply(
-                    f"**Bot is not admin** in `{chat_title}`\n\n"
-                    f"Bot status: {status_name}\n\n"
-                    "The bot needs admin rights (especially 'Pin Messages') to work properly.\n"
+                    f"**Bot is not admin** in `{chat_title}`\n\nBot status: {status_name}\n\n"
                     "Add the bot as admin and try again."
                 )
         else:
             _user_target_chats[event.sender_id] = chat_id
             await event.reply(
-                f"**Transfer chat set!**\n\n"
-                f"**Chat:** {chat_title}\n"
-                f"**ID:** `{chat_id}`\n\n"
+                f"**Transfer chat set!**\n\n**Chat:** {chat_title}\n**ID:** `{chat_id}`\n\n"
                 f"Warning: Could not verify admin status. Pinning may not work."
             )
     except Exception as e:
         _user_target_chats[event.sender_id] = chat_id
         await event.reply(
-            f"**Transfer chat set!**\n\n"
-            f"**Chat:** {chat_title}\n"
-            f"**ID:** `{chat_id}`\n\n"
-            f"Warning: Could not verify admin status ({str(e)[:100]}).\n"
-            f"Pinning may not work if bot is not admin."
+            f"**Transfer chat set!**\n\n**Chat:** {chat_title}\n**ID:** `{chat_id}`\n\n"
+            f"Warning: Could not verify admin status ({str(e)[:100]})."
         )
 
 
-@Drone.on(events.NewMessage(incoming=True, from_users=AUTH, pattern='/mychat'))
+@Drone.on(events.NewMessage(incoming=True, pattern='/mychat'))
 async def my_chat(event):
-    """Show the current target chat for this user."""
+    if not is_authorized(event.sender_id):
+        return
     target = _user_target_chats.get(event.sender_id)
     if target:
         try:
             chat = await Bot.get_chat(target)
             chat_title = chat.title if chat else "Unknown"
             await event.reply(
-                f"**Your Transfer Chat:**\n\n"
-                f"**Name:** {chat_title}\n"
-                f"**ID:** `{target}`\n\n"
-                f"Use `/clearchat` to reset to default channel."
+                f"**Your Transfer Chat:**\n\n**Name:** {chat_title}\n**ID:** `{target}`\n\n"
+                f"Use `/clearchat` to reset to your DM."
             )
         except Exception:
             await event.reply(
@@ -123,20 +102,17 @@ async def my_chat(event):
             )
     else:
         await event.reply(
-            f"**No custom transfer chat set.**\n\n"
-            f"Content is being saved to: your DM\n\n"
+            f"**No custom transfer chat set.**\n\nContent is being saved to: your DM\n\n"
             f"Use `/setchat <chat_id>` to set one."
         )
 
 
-@Drone.on(events.NewMessage(incoming=True, from_users=AUTH, pattern='/clearchat'))
+@Drone.on(events.NewMessage(incoming=True, pattern='/clearchat'))
 async def clear_chat(event):
-    """Reset the target chat to the user's DM."""
+    if not is_authorized(event.sender_id):
+        return
     if event.sender_id in _user_target_chats:
         del _user_target_chats[event.sender_id]
-        await event.reply(
-            "**Transfer chat cleared.**\n\n"
-            "Content will now be saved to your DM."
-        )
+        await event.reply("**Transfer chat cleared.**\n\nContent will now be saved to your DM.")
     else:
         await event.reply("No custom transfer chat was set.")

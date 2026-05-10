@@ -28,7 +28,43 @@ DATA_DIR = config("DATA_DIR", default=".")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 SESSION_FILE = os.path.join(DATA_DIR, "user_session.txt")
-MSG_MAP_FILE = os.path.join(DATA_DIR, "msg_map.json")
+MSG_MAP_FILE  = os.path.join(DATA_DIR, "msg_map.json")
+AUTH_FILE     = os.path.join(DATA_DIR, "auth_users.txt")
+
+# ---------------------------------------------------------------------------
+# Dynamic authorized-users set
+# Starts with the owner (AUTH env-var). Extras are added via /addauth and
+# persisted to AUTH_FILE so they survive restarts.
+# ---------------------------------------------------------------------------
+AUTHORIZED_USERS: set = set()
+if AUTH:
+    AUTHORIZED_USERS.add(AUTH)
+
+def _load_auth_users():
+    try:
+        if os.path.exists(AUTH_FILE):
+            with open(AUTH_FILE) as f:
+                for line in f:
+                    try:
+                        AUTHORIZED_USERS.add(int(line.strip()))
+                    except ValueError:
+                        pass
+    except Exception as e:
+        print(f"[AUTH] Could not load auth_users: {e}")
+
+def save_auth_users():
+    try:
+        with open(AUTH_FILE, "w") as f:
+            for uid in AUTHORIZED_USERS:
+                f.write(f"{uid}\n")
+    except Exception as e:
+        print(f"[AUTH] Could not save auth_users: {e}")
+
+def is_authorized(user_id: int) -> bool:
+    return user_id in AUTHORIZED_USERS
+
+_load_auth_users()
+print(f"[AUTH] Authorized users: {AUTHORIZED_USERS}")
 
 # ---------------------------------------------------------------------------
 # MONKEY-PATCH: Fix Pyrogram's get_peer_type to handle unknown channel IDs
