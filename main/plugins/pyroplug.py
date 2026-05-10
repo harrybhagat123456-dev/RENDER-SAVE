@@ -788,18 +788,29 @@ def format_service_message(msg):
         parts.append(f"Supergroup migrated from group (ID: {msg.migrate_from_chat_id})")
         return "\n".join(parts)
 
-    # Final check: no text, no media, no empty flag → unknown service message
-    has_text  = bool(getattr(msg, 'text',  None))
-    has_media = bool(getattr(msg, 'media', None))
-    is_empty  = bool(getattr(msg, 'empty', False))
-    if not has_text and not has_media and not is_empty:
+    # Final check: only treat as service message if there is genuinely NO content.
+    # Use `is not None` (not bool()) because MessageMediaType enum values can be 0
+    # which is falsy but still means a real media message.
+    # Also check `caption` — photo/video messages use caption, not text.
+    has_text    = getattr(msg, 'text',    None) is not None
+    has_caption = getattr(msg, 'caption', None) is not None
+    has_media   = getattr(msg, 'media',   None) is not None
+    is_empty    = bool(getattr(msg, 'empty', False))
+    has_photo   = getattr(msg, 'photo',   None) is not None
+    has_video   = getattr(msg, 'video',   None) is not None
+    has_doc     = getattr(msg, 'document',None) is not None
+    has_sticker = getattr(msg, 'sticker', None) is not None
+
+    if (not has_text and not has_caption and not has_media
+            and not has_photo and not has_video and not has_doc
+            and not has_sticker and not is_empty):
         raw    = getattr(msg, '_raw', None)
         action = type(getattr(raw, 'action', None)).__name__ if raw else None
         label  = f" ({action})" if action and action not in ('NoneType', 'None') else ""
         parts.append(f"Unknown service message{label}")
         return "\n".join(parts)
 
-    return None   # Not a service message
+    return None   # Not a service message — let normal handlers copy it
 
 
 # ---------------------------------------------------------------------------

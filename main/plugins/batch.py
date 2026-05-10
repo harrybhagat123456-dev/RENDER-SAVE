@@ -3,7 +3,7 @@
 
 import asyncio, time
 
-from .. import bot as Drone, Bot, is_authorized, get_target_chat
+from .. import bot as Drone, Bot, is_authorized, get_target_chat, AUTH
 from main.plugins.pyroplug import get_bulk_msg
 from main.plugins.helpers import get_link
 
@@ -52,7 +52,7 @@ async def _ask(chat_id, sender_id, prompt, timeout=120):
 # ---------------------------------------------------------------------------
 @Drone.on(events.NewMessage(incoming=True, pattern=r'/cancel(?:@\w+)?(?:\s|$)'))
 async def cancel(event):
-    if not is_authorized(event.sender_id):
+    if event.sender_id != AUTH:
         return
     if event.sender_id not in batch:
         return await event.reply("No active batch found for you.")
