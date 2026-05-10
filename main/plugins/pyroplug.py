@@ -167,12 +167,14 @@ async def get_pinned_msg_ids(userbot_client, client, chat_id):
 
 
 async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
-    """Pin a message in the destination channel/group.
+    """Pin a saved message in the destination only if it was pinned in the source chat.
 
-    Always pins when the destination is a channel or group (negative chat_id).
     Skips user DMs — bots cannot pin in DMs (positive IDs).
     Tries bot client first, falls back to userbot if bot lacks pin permission.
     """
+    # Only pin if the source message was pinned
+    if not was_pinned:
+        return
     # Bots cannot pin messages in user DMs (positive IDs = user/DM chats)
     if isinstance(chat_id, int) and chat_id > 0:
         return
