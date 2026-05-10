@@ -11,8 +11,10 @@ from .. import (
 from telethon import events
 
 
-# Pattern handles both /setchat and /setchat@botname (required for group commands)
-@Drone.on(events.NewMessage(incoming=True, pattern=r'/setchat(?:@\w+)?(?:\s|$)'))
+# Pattern handles both /setchat (and /transfer alias) with optional @botname
+_SETCHAT_PATTERN = r'/(?:setchat|transfer)(?:@\w+)?(?:\s|$)'
+
+@Drone.on(events.NewMessage(incoming=True, pattern=_SETCHAT_PATTERN))
 async def set_chat(event):
     if not is_authorized(event.sender_id):
         return

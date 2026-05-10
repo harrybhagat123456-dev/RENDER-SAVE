@@ -67,6 +67,7 @@ _COMMANDS = [
     {"command": "logout",     "description": "Logout and remove saved session"},
     {"command": "batch",      "description": "Save multiple messages in bulk"},
     {"command": "history",    "description": "Resume saving from where you left off"},
+    {"command": "transfer",   "description": "Set transfer channel for saved content (alias: /setchat)"},
     {"command": "setchat",    "description": "Set transfer channel for saved content"},
     {"command": "mychat",     "description": "View your current transfer channel"},
     {"command": "clearchat",  "description": "Reset transfer channel to DM"},

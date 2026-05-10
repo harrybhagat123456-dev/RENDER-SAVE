@@ -167,21 +167,16 @@ async def get_pinned_msg_ids(userbot_client, client, chat_id):
 
 
 async def pin_if_channel(client, chat_id, msg_id, was_pinned=False):
-    """Pin a message in the destination chat if it was pinned in the original chat.
+    """Pin a message in the destination channel/group.
 
-    Strategy:
-      1. Skip if the message was not pinned in the source chat.
-      2. Skip for user DMs — bots cannot pin in DMs (positive IDs).
-      3. Try bot client first (needs pin-messages admin right in channel/group).
-      4. If bot fails, fall back to the userbot.
+    Always pins when the destination is a channel or group (negative chat_id).
+    Skips user DMs — bots cannot pin in DMs (positive IDs).
+    Tries bot client first, falls back to userbot if bot lacks pin permission.
     """
-    print(f"[PIN] pin_if_channel called: chat_id={chat_id} msg_id={msg_id} was_pinned={was_pinned}")
-    if not was_pinned:
-        print(f"[PIN] Skipping — message {msg_id} was not pinned in source chat")
-        return
     # Bots cannot pin messages in user DMs (positive IDs = user/DM chats)
     if isinstance(chat_id, int) and chat_id > 0:
-        print(f"[PIN] Skipping — destination {chat_id} is a user DM (bots cannot pin in DMs)")
+        return
+    if not isinstance(chat_id, int):
         return
     # --- Attempt 1: bot client ---
     try:
