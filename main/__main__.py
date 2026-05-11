@@ -29,8 +29,11 @@ def _start_health_server():
         def log_message(self, *_):
             pass   # silence request logs
 
+    class _ReusableTCPServer(socketserver.TCPServer):
+        allow_reuse_address = True
+
     try:
-        with socketserver.TCPServer(("", port), _Handler) as httpd:
+        with _ReusableTCPServer(("", port), _Handler) as httpd:
             print(f"[HEALTH] Health-check server listening on port {port}")
             httpd.serve_forever()
     except Exception as e:

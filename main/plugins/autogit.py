@@ -15,12 +15,25 @@ def _run(cmd, **kwargs):
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
+def _clear_git_locks():
+    """Remove stale git lock files that block config writes."""
+    for lock in [".git/config.lock", ".git/index.lock", ".git/HEAD.lock"]:
+        try:
+            if os.path.exists(lock):
+                os.remove(lock)
+                print(f"[AUTOGIT] Removed stale lock: {lock}")
+        except Exception:
+            pass
+
+
 def _setup_remote():
     """Configure the git remote to use the PAT for authentication."""
     pat = os.environ.get("GITHUB_PAT", "")
     if not pat:
         print("[AUTOGIT] GITHUB_PAT not set — auto-push disabled.")
         return False
+
+    _clear_git_locks()
 
     # Extract repo path from URL
     repo_path = _REPO_URL.replace("https://github.com/", "")
@@ -39,24 +52,19 @@ def _setup_remote():
 
 
 def _commit_and_push():
-    """Commit any changes and push to origin/main."""
-    # Check if there's anything to commit
-    code, status, _ = _run(["git", "status", "--porcelain"])
-    if not status:
-        return  # Nothing changed
-
-    # Stage all changes (exclude session files and pycache)
-    _run(["git", "add", "-A"])
-    _run(["git", "reset", "--", "*.session", "*.session-journal"])
-
-    # Commit
+    """Commit any pending changes then push — always pushes so unpushed commits land too."""
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
-    code, out, err = _run(["git", "commit", "-m", f"Auto-commit: {timestamp}"])
-    if code != 0:
-        print(f"[AUTOGIT] Commit failed: {err}")
-        return
 
-    # Push
+    # Stage and commit only if there are local changes
+    code, status, _ = _run(["git", "status", "--porcelain"])
+    if status:
+        _run(["git", "add", "-A"])
+        _run(["git", "reset", "--", "*.session", "*.session-journal"])
+        code, out, err = _run(["git", "commit", "-m", f"Auto-commit: {timestamp}"])
+        if code != 0:
+            print(f"[AUTOGIT] Commit failed: {err}")
+
+    # Always push — covers both new commits and previously unpushed commits
     code, out, err = _run(["git", "push", "origin", "main"])
     if code == 0:
         print(f"[AUTOGIT] Pushed successfully at {timestamp}")
@@ -65,9 +73,14 @@ def _commit_and_push():
 
 
 def _auto_push_loop():
-    """Background loop: commit+push every _INTERVAL seconds."""
+    """Background loop: push immediately at startup, then every _INTERVAL seconds."""
     if not _setup_remote():
         return
+    # Push right away on startup to catch any unpushed commits
+    try:
+        _commit_and_push()
+    except Exception as e:
+        print(f"[AUTOGIT] Error during startup push: {e}")
     while True:
         time.sleep(_INTERVAL)
         try:
