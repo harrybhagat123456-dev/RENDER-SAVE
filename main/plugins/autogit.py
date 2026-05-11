@@ -64,7 +64,9 @@ def _commit_and_push():
         if code != 0:
             print(f"[AUTOGIT] Commit failed: {err}")
 
-    # Always push — covers both new commits and previously unpushed commits
+    # Pull remote changes first (rebase keeps history clean), then push
+    _run(["git", "pull", "--rebase", "origin", "main"])
+
     code, out, err = _run(["git", "push", "origin", "main"])
     if code == 0:
         print(f"[AUTOGIT] Pushed successfully at {timestamp}")
