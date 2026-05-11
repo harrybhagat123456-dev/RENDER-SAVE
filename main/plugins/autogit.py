@@ -64,10 +64,9 @@ def _commit_and_push():
         if code != 0:
             print(f"[AUTOGIT] Commit failed: {err}")
 
-    # Pull remote changes first (rebase keeps history clean), then push
-    _run(["git", "pull", "--rebase", "origin", "main"])
-
-    code, out, err = _run(["git", "push", "origin", "main"])
+    # Force-push local state — Replit's checkpoint system also pushes to this
+    # remote, causing divergence. Our local code is always authoritative.
+    code, out, err = _run(["git", "push", "origin", "main", "--force"])
     if code == 0:
         print(f"[AUTOGIT] Pushed successfully at {timestamp}")
     else:
